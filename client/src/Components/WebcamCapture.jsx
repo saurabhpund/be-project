@@ -5,13 +5,14 @@ import axios from 'axios';
 
 const WebcamCapture = () => {
   const webcamRef = useRef(null);
-  
+  const baseURL = "http://192.168.161.57"
+
   const [detectedObjects, setDetectedObjects] = useState([]);
 
   const sendFrameToBackend = useCallback(() => {
     const imageSrc = webcamRef.current.getScreenshot();
     if (imageSrc) {
-      axios.post('http://localhost:5000/upload', {
+      axios.post(`${baseURL}:5000/upload`, {
         image: imageSrc,
       })
       .then((response) => {

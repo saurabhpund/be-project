@@ -11,12 +11,12 @@ const Signup = () => {
     const [role, setRole] = useState("");
     const [error, setError] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
-  
+    const baseURL = "http://192.168.161.57"
     const handleLogin = async (e) => {
       e.preventDefault();
       setError(null);
   
-      axios.post("http://localhost:5000/auth/signup", {username, email, password, role}, {
+      axios.post(`${baseURL}:5000/auth/signup`, {username, email, password, role}, {
           headers: {
             'Content-Type': 'application/json',
           },

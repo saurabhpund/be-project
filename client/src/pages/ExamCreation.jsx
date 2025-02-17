@@ -9,6 +9,7 @@ const ExamCreation = () => {
   const [error, setError] = useState('');
   const [visible, setVisible] = useState(false);
   const [examId, setExamId] = useState('');
+  const baseURL = "http://192.168.161.57"
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -26,7 +27,7 @@ const ExamCreation = () => {
     formData.append("date", examDate); // Include exam details
 
     try {
-      const response = await fetch("http://localhost:5000/upload-file", {
+      const response = await fetch(`${baseURL}:5000/upload-file`, {
           method: "POST",
           body: formData,
       });

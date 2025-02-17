@@ -9,6 +9,7 @@ import axios from 'axios';
 import { FaSun, FaMoon } from 'react-icons/fa';
 
 const CodeEditor = ({ questionNumber }) => {
+    const baseURL = "http://192.168.161.57"
     const [code, setCode] = useState('# Start coding here...');
     const [language, setLanguage] = useState('python');
     const [theme, setTheme] = useState('monokai');
@@ -43,7 +44,7 @@ const CodeEditor = ({ questionNumber }) => {
 
     const handleSubmit = async () => {
         try {
-            const response = await axios.post('http://localhost:5000/submit-code', { code, language, question_number: questionNumber });
+            const response = await axios.post(`${baseURL}:5000/submit-code`, { code, language, question_number: questionNumber });
             if (response.status === 200) {
                 setNotification({ type: 'success', message: 'Code submitted successfully!' });
             } else {

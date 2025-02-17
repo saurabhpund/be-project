@@ -13,6 +13,7 @@ const Login = () => {
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const user = useVerifyToken();
+  const baseURL = "http://192.168.161.57"
 
   const [token, setToken] = useState('');
   const handleLogin = async (e) => {
@@ -24,7 +25,7 @@ const Login = () => {
     }
 
     console.log(username, email, password, role);
-    axios.post("http://localhost:5000/auth/login", {username, email, password, role}, {
+    axios.post(`${baseURL}:5000/auth/login`, {username, email, password, role}, {
         headers: {
           'Content-Type': 'application/json',
         },
@@ -44,7 +45,7 @@ const Login = () => {
   };
 
   const verifyToken = async function(token){
-     await axios.get('http:localhost:5000/auth/verify', {},{
+     await axios.get(`${baseURL}:5000/auth/verify`, {},{
       headers: {
         'Authorization': 'Bearer '+ token
       }

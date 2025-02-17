@@ -1,4 +1,3 @@
-// exam.js
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import useFullscreenManager from '../hooks/useFullscreenManager';
@@ -11,10 +10,12 @@ import KeyLogs from '../Components/KeyLogs';
 import FullscreenPrompt from '../Components/FullscreenPrompt';
 import ToggleableWebcam from '../Components/ToggleableWebcam';
 import Timer from '../Components/Timer';
+import { QRCodeSVG } from 'qrcode.react';
 
 function Exam() {
   const { examId } = useParams();
-  const { isFullscreen, goFullscreen, exitCount } = useFullscreenManager();
+  const { isFullscreen, goFullscreen } = useFullscreenManager();
+  const [sessionToken, setSessionToken] = useState("");
   const [examStarted, setExamStarted] = useState(false);
   const [isLoggingActive, setIsLoggingActive] = useState(false);
   const [keyLogs, setKeyLogs] = useState("");
@@ -25,19 +26,17 @@ function Exam() {
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [error, setError] = useState('');
   const [examDuration, setExamDuration] = useState(0);
-
-  const examStartTime = useRef(null); // Track exam start time
+  const baseURL = "http://192.168.161.57";
+  const examStartTime = useRef(null);
 
   useTabFocusMonitor();
   useKeyLogger(isLoggingActive, setKeyLogs);
 
-  // Fetch exam details based on the examId from the URL
   useEffect(() => {
     if (examId) {
-      fetch(`http://localhost:5000/exam/details/${examId}`)
+      fetch(`${baseURL}:5000/exam/details/${examId}`)
         .then((res) => res.json())
         .then((data) => {
-          console.log("Fetched exam details:", data);
           if (data.success) {
             setQuestions(data.questions);
             setExamDuration(data.duration);
@@ -50,7 +49,7 @@ function Exam() {
           setError("Error fetching exam details");
         });
     }
-  }, [examId]);
+  }, [examId, baseURL]);
 
   const startExam = async () => {
     if (questions.length === 0) {
@@ -62,7 +61,29 @@ function Exam() {
     examStartTime.current = Date.now();
     await goFullscreen();
     setIsLoggingActive(true);
+
+    try {
+      const response = await fetch(`${baseURL}:5000/exam/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ examId, username: "CURRENT_USER" }) // Replace "CURRENT_USER" as needed
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSessionToken(data.sessionToken);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      console.error("Error starting exam session:", err);
+      setError("Error starting exam session");
+    }
   };
+
+  // Only build the exam session URL if sessionToken is available
+  const examSessionUrl = sessionToken
+    ? `${baseURL}:5000/mobile-monitor?examId=${examId}&sessionToken=${sessionToken}`
+    : "";
 
   const handleReenterFullscreen = async () => {
     await goFullscreen();
@@ -83,13 +104,13 @@ function Exam() {
   const handleSubmit = () => {
     const timeTaken = calculateTimeTaken();
     alert(`Exam submitted successfully! You completed the exam in ${timeTaken}.`);
-    console.log('Selected Answers:', selectedAnswers);
     setExamStarted(false);
     setQuestions([]);
     setCurrentQuestionIndex(0);
     setSelectedAnswers({});
     setExamDuration(0);
     setError('');
+    setIsLoggingActive(false);
   };
 
   useEffect(() => {
@@ -119,7 +140,14 @@ function Exam() {
     <div className="App min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <h1 className="text-4xl font-bold mb-6 text-gray-800">Online Exam</h1>
       {error && <p className="text-red-500">{error}</p>}
-      {/* If exam details are loaded and exam hasn't started, show exam info & the Attempt Exam button */}
+      <div className="qr-code-container">
+        <p>Scan this QR code with your smartphone to enable exam monitoring:</p>
+        {sessionToken ? (
+          <QRCodeSVG value={examSessionUrl} size={150} />
+        ) : (
+          <p>Exam session not started yet.</p>
+        )}
+      </div>
       {!examStarted && (
         <div>
           <p className="mb-4">Exam ID: {examId}</p>
@@ -127,10 +155,9 @@ function Exam() {
           <StartExamButton onClick={startExam} />
         </div>
       )}
-      {/* Once the exam has started, show the Timer and Exam container */}
       {examStarted && (
         <>
-          <Header exitCount={exitCount}/>
+          <Header />
           <Timer initialMinutes={examDuration} onTimeUp={handleTimeUp} />
           {questions.length > 0 ? (
             <ExamContainer
