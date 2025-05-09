@@ -1,13 +1,16 @@
 // ExamDashboard.jsx
 import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 
-const ExamDashboard = ({ examId }) => {
+const ExamDashboard = () => {
   const [examResult, setExamResult] = useState(null);
+  const { examId } = useParams();
   const username = localStorage.getItem("username"); // Ensure this is set at login
 
   useEffect(() => {
     async function fetchExamResult() {
       try {
+        console.log(examId)
         const res = await fetch(`http://localhost:5000/exam/result?examId=${examId}&username=${username}`);
         const data = await res.json();
         if (data.success) {
@@ -52,7 +55,7 @@ const ExamDashboard = ({ examId }) => {
         <p><strong>Max Score:</strong> {examResult.maxScore}</p>
         <div className="answers mt-4">
           <h3 className="text-lg font-semibold">Answers:</h3>
-          {examResult.answers ? (
+          {examResult?.answers ? (
             <ul className="list-disc ml-6">
               {Object.entries(examResult.answers).map(([questionIdx, answer]) => (
                 <li key={questionIdx}>
@@ -82,6 +85,7 @@ const ExamDashboard = ({ examId }) => {
   Your browser does not support the audio element.
 </audio>
               </li>
+
             ))}
           </ul>
         ) : (

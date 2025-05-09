@@ -1,71 +1,154 @@
+// ExamDashboard.jsx
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
-const AttemptedExams = () => {
-  const [attemptedExams, setAttemptedExams] = useState([]);
-  const navigate = useNavigate();
-  const username = localStorage.getItem("username");
+const ExamDashboard = () => {
+  const [examResult, setExamResult] = useState(null);
+  const [frames, setFrames] = useState([]);
+  const username = localStorage.getItem("username"); // Ensure this is set at login
 
+  // Fetch exam result
   useEffect(() => {
-    async function fetchAttemptedExams() {
+    async function fetchExamResult() {
       try {
-        const res = await fetch(`http://localhost:5000/exam/attempted?username=${username}`);
+        const res = await fetch(
+          `http://localhost:5000/exam/result?examId=${examId}&username=${username}`
+        );
         const data = await res.json();
         if (data.success) {
-          setAttemptedExams(data.attemptedExams);
+          setExamResult(data.result);
+        } else {
+          console.error("Error fetching exam result:", data.message);
         }
       } catch (err) {
-        console.error("Error fetching attempted exams:", err);
+        console.error("Error fetching exam result:", err);
       }
     }
-    if (username) {
-      fetchAttemptedExams();
+
+    if (examId && username) {
+      fetchExamResult();
     }
-  }, [username]);
+  }, [examId, username]);
+
+  // Fetch captured image frames
+  useEffect(() => {
+    async function fetchFrames() {
+      try {
+        const res = await fetch(`http://localhost:5000/frames/${examId}`);
+        const data = await res.json();
+        if (data.success) {
+          setFrames(data.frames);
+        } else {
+          console.error("Error fetching frames:", data.message);
+        }
+      } catch (err) {
+        console.error("Error fetching frames:", err);
+      }
+    }
+
+    if (examId) {
+      fetchFrames();
+    }
+  }, [examId]);
+
+  // if (!examResult) {
+  //   return <div>Loading exam result...</div>;
+  // }
 
   return (
-    <div className="attempted-exams p-6">
-      <h2 className="text-2xl font-semibold mb-6">Attempted Exams</h2>
+    <div className="dashboard p-4">
+      <h1 className="text-2xl font-bold mb-4">Exam Dashboard</h1>
 
-      {attemptedExams.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 bg-white shadow rounded-lg">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Exam Name</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Exam ID</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Duration</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Date</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-gray-700">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {attemptedExams.filter(elem => elem.examName).map((exam, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900">{exam.examName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{exam.examId}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{exam.examDuration} min</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(exam.examDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => navigate(`/exam/dashboard/${exam.examId}`)}
-                      className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
+      {/* Exam Result */}
+      <div className="exam-result mb-6 border p-4 rounded shadow">
+        <h2 className="text-xl font-semibold mb-2">Exam Result</h2>
+        <p><strong>Exam ID:</strong> {examResult.examId}</p>
+        <p><strong>Exam Name:</strong> {examResult.examName}</p>
+        <p><strong>Duration:</strong> {examResult.examDuration} minutes</p>
+        <p>
+          <strong>Date:</strong>{" "}
+          {examResult.examDate ? new Date(examResult.examDate).toLocaleDateString() : "N/A"}
+        </p>
+        <p>
+          <strong>Exam Start Time:</strong>{" "}
+          {examResult.examStartTime ? new Date(examResult.examStartTime).toLocaleString() : "N/A"}
+        </p>
+        <p>
+          <strong>Submitted At:</strong>{" "}
+          {examResult.submittedAt ? new Date(examResult.submittedAt).toLocaleString() : "N/A"}
+        </p>
+        <p><strong>Score:</strong> {examResult.score}</p>
+        <p><strong>Max Score:</strong> {examResult.maxScore}</p>
+        <div className="answers mt-4">
+          <h3 className="text-lg font-semibold">Answers:</h3>
+          {examResult.answers ? (
+            <ul className="list-disc ml-6">
+              {Object.entries(examResult.answers).map(([questionIdx, answer]) => (
+                <li key={questionIdx}>
+                  <strong>Question {questionIdx}:</strong> {answer}
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          ) : (
+            <p>No answers submitted.</p>
+          )}
         </div>
-      ) : (
-        <p className="text-gray-600">No attempted exams found.</p>
-      )}
+      </div>
+
+      {/* Audio Recordings */}
+      <div className="audio-recordings border p-4 rounded shadow">
+        <h2 className="text-xl font-semibold mb-2">Audio Recordings</h2>
+        {examResult.recordings && examResult.recordings.length > 0 ? (
+          <ul>
+            {examResult.recordings.map((recording, index) => (
+              <li key={index} className="mb-4 p-2 border rounded">
+                <p>
+                  <strong>Timestamp:</strong>{" "}
+                  {new Date(recording.timestamp).toLocaleString()}
+                </p>
+                <audio controls>
+                  <source
+                    src={`http://localhost:5000/audio/${recording.file}`}
+                    type="audio/webm"
+                  />
+                  Your browser does not support the audio element.
+                </audio>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No audio recordings available.</p>
+        )}
+      </div>
+
+      {/* Captured Image Frames */}
+      <div className="captured-frames mt-6 border p-4 rounded shadow">
+        <h2 className="text-xl font-semibold mb-2">Captured Frames</h2>
+        {frames.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {frames.map((frame, index) => (
+              <div key={index} className="frame border p-2 rounded shadow-sm">
+                <p className="text-sm mb-1">
+                  <strong>Timestamp:</strong>{" "}
+                  {new Date(frame.timestamp).toLocaleString()}
+                </p>
+                <img
+                  src={
+                    frame.image.startsWith("data:")
+                      ? frame.image
+                      : `data:image/jpeg;base64,${frame.image}`
+                  }
+                  alt={`Frame ${index}`}
+                  className="w-full h-auto rounded"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p>No captured frames available.</p>
+        )}
+      </div>
     </div>
   );
 };
 
-export default AttemptedExams;
+export default ExamDashboard;

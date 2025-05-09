@@ -17,6 +17,7 @@ db_data = init_db()
 db = db_data['db']
 db_exams = db_data['db_exams']
 db_collection = db_data['db_collection']
+db_frames = db_data["frames"]
 
 exam_bp = Blueprint('exam', __name__)
 
@@ -242,17 +243,37 @@ def submit_code():
 def exam_attempted():
     try:
         username = request.args.get("username")
+        exam_id = request.args.get("examId")
         if not username:
             return jsonify({"success": False, "message": "Missing username"}), 400
 
         attempts = list(db_collection.find({"username": username}))
+        frames = list(db_frames.find({"username": username, "exam_id": examId}))
         for attempt in attempts:
             attempt["_id"] = str(attempt["_id"])
             if "submittedAt" in attempt and isinstance(attempt["submittedAt"], datetime.datetime):
                 attempt["submittedAt"] = attempt["submittedAt"].isoformat()
-        return jsonify({"success": True, "attemptedExams": attempts}), 200
+        return jsonify({"success": True, "attemptedExams": attempts, "frames": frames}), 200
     except Exception as e:
         print("Error in /exam/attempted:", e)
+        return jsonify({"success": False, "message": str(e)}), 500
+    
+@exam_bp.route('/frames/<exam_id>', methods=['GET'])
+def get_frames(exam_id):
+    try:
+        # Fetch all frames for the given exam_id
+        frames_cursor = db_frames.find({"exam_id": exam_id})
+        frames = []
+        for frame in frames_cursor:
+            frames.append({
+                "timestamp": frame.get("timestamp", datetime.datetime.utcnow()),
+                "image": frame.get("image", "")  # base64 string
+            })
+
+        return jsonify({"success": True, "frames": frames}), 200
+
+    except Exception as e:
+        print(f"Error retrieving frames: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
     
 @exam_bp.route('/details/<exam_id>', methods=['GET'])

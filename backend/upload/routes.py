@@ -30,6 +30,17 @@ def upload_frame():
     data = request.get_json()
     examId = data.get('exam_id')
     image_data = data.get('image')
+   
+
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"success": False, "message": "Token is missing"}), 401
+    token = auth_header.split(" ")[1]
+    JWT_SECRET = os.getenv("JWT_SECRET")
+    decoded_token = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+
+
+
     if not image_data:
         return jsonify({"success": False, "message": "No image provided"}), 400
 
@@ -53,7 +64,8 @@ def upload_frame():
                 "timestamp": datetime.datetime.now(datetime.timezone.utc),
                 "objects": objects,
                 "image": image_data,
-                "exam_id": examId
+                "exam_id": examId,
+                "username": decoded_token["username"]
             })
 
         return jsonify({"success": True, "objects": objects}), 200

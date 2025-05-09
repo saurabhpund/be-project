@@ -8,6 +8,15 @@ const WebcamCapture = ({exam_id}) => {
   const webcamRef = useRef(null);
   const [lastToastTime, setLastToastTime] = useState(0);
 const toastCooldown = 5000; // 5 seconds
+const [token, setToken] = useState('')
+
+ useEffect(()=>{
+        let token = localStorage.getItem('token');
+    if (token) {
+      setToken(token)
+      console.log(token)
+    }
+    }, []);
 
 
   const [detectedObjects, setDetectedObjects] = useState([]);
@@ -18,8 +27,8 @@ const toastCooldown = 5000; // 5 seconds
       axios
         .post("http://localhost:5000/upload", {
           image: imageSrc,
-          exam_id: exam_id
-        }, {withCredentials: true})
+          exam_id: exam_id,
+        }, {withCredentials: true, headers: {Authorization: "Bearer "+token} })
         .then((response) => {
           setDetectedObjects(response.data.objects || []);
           // console.log('Frame sent successfully', response.data);

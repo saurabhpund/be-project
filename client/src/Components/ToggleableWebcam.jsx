@@ -2,6 +2,8 @@ import React from 'react';
 import WebcamCapture from './WebcamCapture';
 
 const ToggleableWebcam = ({ showWebcam, onToggle, exam_id }) => (
+    
+
     <div className="flex flex-col items-center">
         <button
             onClick={onToggle}
