@@ -53,6 +53,9 @@ def create_app(config_class=config):
     
     return app
 
-if __name__ == '__main__':
-    app = create_app()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    # Local development
+    create_app().run(host="0.0.0.0", port=5000, debug=True)
+
+# WSGI entrypoint for Gunicorn / Render
+application = create_app()
