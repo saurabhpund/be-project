@@ -24,5 +24,7 @@ scikit-learn==1.3.2
 webrtcvad==2.0.10
 librosa==0.10.1
 python-dateutil==2.8.2
-docx
+pydub==0.25.1
+google-generativeai==0.3.2
+pyannote.audio==3.1.1
 docx
