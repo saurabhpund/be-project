@@ -1,0 +1,394 @@
+{
+	"info": {
+		"_postman_id": "exam-tests",
+		"name": "Exam Management Tests",
+		"description": "Collection for testing exam creation and management functionality",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Unit Tests",
+			"item": [
+				{
+					"name": "Test Question Parsing",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "test_questions.txt"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/exam/test-parse",
+							"host": ["{{base_url}}"],
+							"path": ["exam", "test-parse"]
+						},
+						"description": "Tests the question parsing functionality"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Unit test for question parsing",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has correct structure', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', true);",
+									"    pm.expect(response).to.have.property('questions').that.is.an('array');",
+									"    pm.expect(response).to.have.property('maxScore').that.is.a('number');",
+									"});",
+									"",
+									"pm.test('Questions have correct format', function () {",
+									"    const response = pm.response.json();",
+									"    response.questions.forEach(question => {",
+									"        pm.expect(question).to.have.property('type').that.is.oneOf(['mcq', 'coding']);",
+									"        pm.expect(question).to.have.property('question').that.is.a('string');",
+									"        pm.expect(question).to.have.property('score').that.is.a('number');",
+									"        if (question.type === 'mcq') {",
+									"            pm.expect(question).to.have.property('options').that.is.an('array');",
+									"            pm.expect(question).to.have.property('correctAnswer').that.is.a('string');",
+									"        }",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Test Student Data Parsing",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "studentData",
+									"type": "file",
+									"src": "test_students.xlsx"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/exam/test-student-parse",
+							"host": ["{{base_url}}"],
+							"path": ["exam", "test-student-parse"]
+						},
+						"description": "Tests the student data parsing functionality"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Unit test for student data parsing",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has correct structure', function () {",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', true);",
+									"    pm.expect(response).to.have.property('students').that.is.an('array');",
+									"});",
+									"",
+									"pm.test('Student data has correct format', function () {",
+									"    const response = pm.response.json();",
+									"    response.students.forEach(student => {",
+									"        pm.expect(student).to.have.property('name').that.is.a('string');",
+									"        pm.expect(student).to.have.property('username').that.is.a('string');",
+									"        pm.expect(student).to.have.property('email').that.is.a('string');",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Integration Tests",
+			"item": [
+				{
+					"name": "Create and Verify Exam",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Clear any existing exam ID",
+									"pm.environment.unset('exam_id');"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Integration test for exam creation and verification",
+									"pm.test('Exam creation successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', true);",
+									"    pm.expect(response).to.have.property('examId').that.is.a('string');",
+									"    pm.environment.set('exam_id', response.examId);",
+									"});",
+									"",
+									"// Verify exam details",
+									"pm.sendRequest({",
+									"    url: pm.environment.get('base_url') + '/exam/details/' + pm.environment.get('exam_id'),",
+									"    method: 'GET',",
+									"    header: {",
+									"        'Authorization': 'Bearer ' + pm.environment.get('auth_token')",
+									"    }",
+									"}, function (err, res) {",
+									"    pm.test('Exam details retrieved successfully', function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.status(200);",
+									"        const response = res.json();",
+									"        pm.expect(response).to.have.property('success', true);",
+									"        pm.expect(response).to.have.property('questions').that.is.an('array');",
+									"        pm.expect(response).to.have.property('duration').that.is.a('number');",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Student Exam Flow",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Integration test for student exam flow",
+									"pm.test('Connect to exam successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', true);",
+									"    pm.expect(response).to.have.property('examToken').that.is.a('string');",
+									"    pm.environment.set('exam_token', response.examToken);",
+									"});",
+									"",
+									"// Verify exam attempt",
+									"pm.sendRequest({",
+									"    url: pm.environment.get('base_url') + '/exam/attempted?username=' + pm.environment.get('student_username'),",
+									"    method: 'GET',",
+									"    header: {",
+									"        'Authorization': 'Bearer ' + pm.environment.get('auth_token')",
+									"    }",
+									"}, function (err, res) {",
+									"    pm.test('Exam attempt recorded', function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.status(200);",
+									"        const response = res.json();",
+									"        pm.expect(response).to.have.property('success', true);",
+									"        pm.expect(response).to.have.property('attemptedExams').that.is.an('array');",
+									"        const attempt = response.attemptedExams.find(e => e.examId === pm.environment.get('exam_id'));",
+									"        pm.expect(attempt).to.exist;",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "System Tests",
+			"item": [
+				{
+					"name": "Complete Exam Lifecycle",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// Clear environment variables",
+									"pm.environment.unset('exam_id');",
+									"pm.environment.unset('exam_token');"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// System test for complete exam lifecycle",
+									"let examId = '';",
+									"",
+									"// 1. Create exam",
+									"pm.test('Exam creation successful', function () {",
+									"    pm.response.to.have.status(200);",
+									"    const response = pm.response.json();",
+									"    pm.expect(response).to.have.property('success', true);",
+									"    examId = response.examId;",
+									"    pm.environment.set('exam_id', examId);",
+									"});",
+									"",
+									"// 2. Verify exam is in created exams list",
+									"pm.sendRequest({",
+									"    url: pm.environment.get('base_url') + '/exam/created?instructor=' + pm.environment.get('instructor_username'),",
+									"    method: 'GET',",
+									"    header: {",
+									"        'Authorization': 'Bearer ' + pm.environment.get('auth_token')",
+									"    }",
+									"}, function (err, res) {",
+									"    pm.test('Exam appears in created exams', function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.status(200);",
+									"        const response = res.json();",
+									"        const exam = response.exams.find(e => e.id === examId);",
+									"        pm.expect(exam).to.exist;",
+									"    });",
+									"});",
+									"",
+									"// 3. Verify exam is in active exams list",
+									"pm.sendRequest({",
+									"    url: pm.environment.get('base_url') + '/exam/active?username=' + pm.environment.get('student_username'),",
+									"    method: 'GET',",
+									"    header: {",
+									"        'Authorization': 'Bearer ' + pm.environment.get('auth_token')",
+									"    }",
+									"}, function (err, res) {",
+									"    pm.test('Exam appears in active exams', function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.status(200);",
+									"        const response = res.json();",
+									"        const exam = response.exams.find(e => e.id === examId);",
+									"        pm.expect(exam).to.exist;",
+									"    });",
+									"});",
+									"",
+									"// 4. Connect to exam",
+									"pm.sendRequest({",
+									"    url: pm.environment.get('base_url') + '/exam/connect',",
+									"    method: 'POST',",
+									"    header: {",
+									"        'Content-Type': 'application/json',",
+									"        'Authorization': 'Bearer ' + pm.environment.get('auth_token')",
+									"    },",
+									"    body: {",
+									"        mode: 'raw',",
+									"        raw: JSON.stringify({",
+									"            token: pm.environment.get('auth_token'),",
+									"            examId: examId",
+									"        })",
+									"    }",
+									"}, function (err, res) {",
+									"    pm.test('Connect to exam successful', function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.status(200);",
+									"        const response = res.json();",
+									"        pm.expect(response).to.have.property('success', true);",
+									"        pm.expect(response).to.have.property('examToken').that.is.a('string');",
+									"        pm.environment.set('exam_token', response.examToken);",
+									"    });",
+									"});",
+									"",
+									"// 5. Verify exam attempt",
+									"pm.sendRequest({",
+									"    url: pm.environment.get('base_url') + '/exam/attempted?username=' + pm.environment.get('student_username'),",
+									"    method: 'GET',",
+									"    header: {",
+									"        'Authorization': 'Bearer ' + pm.environment.get('auth_token')",
+									"    }",
+									"}, function (err, res) {",
+									"    pm.test('Exam attempt recorded', function () {",
+									"        pm.expect(err).to.be.null;",
+									"        pm.expect(res).to.have.status(200);",
+									"        const response = res.json();",
+									"        const attempt = response.attemptedExams.find(e => e.examId === examId);",
+									"        pm.expect(attempt).to.exist;",
+									"    });",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "your_auth_token_here",
+			"type": "string"
+		},
+		{
+			"key": "exam_id",
+			"value": "your_exam_id_here",
+			"type": "string"
+		},
+		{
+			"key": "instructor_username",
+			"value": "instructor_username",
+			"type": "string"
+		},
+		{
+			"key": "student_username",
+			"value": "student_username",
+			"type": "string"
+		}
+	]
+} 

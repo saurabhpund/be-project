@@ -82,7 +82,7 @@ const ExamCreation = () => {
       />
       <div className={`flex-1 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
         <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center mb-8">
             <button
               onClick={() => navigate(-1)}
               className="flex items-center text-gray-600 hover:text-gray-900"
@@ -90,7 +90,7 @@ const ExamCreation = () => {
               <ArrowLeft className="h-5 w-5 mr-2" />
               Back
             </button>
-            <h2 className="text-2xl font-bold text-gray-900 absolute left-1/2 transform -translate-x-1/2">Create New Exam</h2>
+            <h2 className="text-2xl font-bold mx-auto">Create New Exam</h2>
           </div>
 
           {visible ? (
