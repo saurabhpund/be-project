@@ -21,7 +21,6 @@ import Features from "./Features";
 import HowItWorks from "./HowItWorks";
 import Benifits from "./Benifits";
 import Testimonials from "./Testimonials";
-import CTA from "./CTA";
 import Footer from "./Footer";
 
 export default function Home() {
@@ -47,8 +46,6 @@ export default function Home() {
       {/* Testimonials */}
       <Testimonials />
 
-      {/* CTA */}
-      <CTA />
 
       {/* Footer */}
       <Footer />

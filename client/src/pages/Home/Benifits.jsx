@@ -1,5 +1,7 @@
 import { Check, ChevronRight } from 'lucide-react';
 import React from 'react'
+import BenifitsImg from "../../assets/mockup.svg";
+import { Link } from 'react-router-dom';
 
 const Benifits = () => {
     const data = [
@@ -29,7 +31,7 @@ const Benifits = () => {
               <div className="relative">
                 <div className="bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg p-2">
                   <img 
-                    src=" " 
+                    src={BenifitsImg} 
                     alt="FairAI Benefits" 
                     className="rounded-lg shadow-2xl"
                   />
@@ -56,9 +58,9 @@ const Benifits = () => {
                   </div>
                 ))}
               </div>
-              <button className="mt-8 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center">
+              <Link to={"/auth/login"} className="mt-8 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium inline-flex items-center">
                 Learn More <ChevronRight className="ml-1 h-5 w-5" />
-              </button>
+              </Link>
             </div>
           </div>
         </div>

@@ -49,9 +49,9 @@ const Signup = () => {
       <div className="w-full min-h-screen">
         <div className="flex w-full h-full">
           <div className="left w-1/2">
-            <div className="p-4 flex h-16">
+            <div className="p-4 flex items-center h-16">
               <Shield className="h-8 w-8 mr-2 text-blue-600" />
-              <h1 className="text-3xl font-bold text-gray-800">FairAI</h1>
+              <Link to="/" className="text-2xl font-bold text-gray-800">FairAI</Link>
             </div>
             <picture>
               <img src={Svgfile} alt="Signup illustration" />

@@ -31,7 +31,6 @@ const Navbar = () => {
                 <a href="#how-it-works" className="px-3 py-2 text-sm font-medium hover:text-blue-600 transition-colors">How It Works</a>
                 <a href="#benefits" className="px-3 py-2 text-sm font-medium hover:text-blue-600 transition-colors">Benefits</a>
                 <a href="#testimonials" className="px-3 py-2 text-sm font-medium hover:text-blue-600 transition-colors">Testimonials</a>
-                <a href="#pricing" className="px-3 py-2 text-sm font-medium hover:text-blue-600 transition-colors">Pricing</a>
               </div>
             </div>
             
@@ -60,7 +59,6 @@ const Navbar = () => {
               <a href="#how-it-works" className="block px-3 py-2 text-base font-medium hover:bg-gray-100 rounded-md" onClick={() => setIsMenuOpen(false)}>How It Works</a>
               <a href="#benefits" className="block px-3 py-2 text-base font-medium hover:bg-gray-100 rounded-md" onClick={() => setIsMenuOpen(false)}>Benefits</a>
               <a href="#testimonials" className="block px-3 py-2 text-base font-medium hover:bg-gray-100 rounded-md" onClick={() => setIsMenuOpen(false)}>Testimonials</a>
-              <a href="#pricing" className="block px-3 py-2 text-base font-medium hover:bg-gray-100 rounded-md" onClick={() => setIsMenuOpen(false)}>Pricing</a>
             </div>
             <div className="pt-4 pb-3 border-t border-gray-200">
               <div className="flex items-center px-5">

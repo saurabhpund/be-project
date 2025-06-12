@@ -21,11 +21,32 @@ import numpy as np
 import pandas as pd
 from flask_mail import Mail, Message
 import openpyxl
+import boto3
+from botocore.exceptions import ClientError
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Configure CORS with more specific settings
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000", "http://192.168.0.103:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True,
+        "max_age": 3600
+    }
+})
+
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER")
 app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", 587))
@@ -472,335 +493,122 @@ def exam_attempted():
 #     else:
 #         return jsonify({"success": True, "latestExam": None}), 200
 
+# AWS S3 Configuration
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    region_name=os.getenv('AWS_REGION', 'us-east-1')
+)
+S3_BUCKET = os.getenv('S3_BUCKET_NAME')
+
 @app.route('/store-keylogs', methods=['POST'])
 def store_keylogs():
     data = request.get_json()
     key_logs = data.get('keyLogs', '')
-    if not key_logs:
-        return jsonify({"success": False, "message": "No key logs provided"}), 400
+    exam_id = data.get('examId')
+    username = data.get('username')
+    
+    if not key_logs or not exam_id or not username:
+        return jsonify({"success": False, "message": "Missing required data"}), 400
+        
     try:
+        # Create a unique filename for S3
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"keylogs/{exam_id}/{username}_{timestamp}.txt"
+        
+        # Upload to S3
+        s3_client.put_object(
+            Bucket=S3_BUCKET,
+            Key=filename,
+            Body=key_logs,
+            ContentType='text/plain'
+        )
+        
+        # Also store in local file for immediate analysis
         file_path = os.path.join(UPLOAD_FOLDER, 'keylogs.txt')
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(key_logs)
-        return jsonify({"success": True, "message": "Keylogs stored successfully"}), 200
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Error storing keylogs: {str(e)}"}), 500
-
-def parse_questions(filepath, filename, uid=None):
-    if uid is None:
-        uid = str(uuid.uuid4())
-    questions = []
-    total_score = 0
-    content = ""
-    if filename.endswith('.txt'):
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
-    elif filename.endswith('.docx'):
-        doc = docx.Document(filepath)
-        content = "\n".join([p.text for p in doc.paragraphs])
-    
-    lines = content.split('\n')
-    current_question = None
-    current_options = []
-    correct_answer = None
-    question_type = None  # 'mcq' or 'coding'
-    
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
+            
+        return jsonify({
+            "success": True, 
+            "message": "Keylogs stored successfully",
+            "s3_path": filename
+        }), 200
         
-        if line.startswith("Problem Statement:"):
-            if current_question:
-                score = 2 if question_type == 'mcq' else 5
-                total_score += score
-                questions.append({
-                    "type": question_type,
-                    "question": current_question,
-                    "options": current_options if question_type == 'mcq' else [],
-                    "correctAnswer": correct_answer if question_type == 'mcq' else None,
-                    "score": score
-                })
-                current_question, current_options, correct_answer = None, [], None
-            question_type = 'coding'
-            current_question = line
-            continue
-
-        if line.endswith('?'):
-            if current_question:
-                score = 2 if question_type == 'mcq' else 5
-                total_score += score
-                questions.append({
-                    "type": question_type,
-                    "question": current_question,
-                    "options": current_options if question_type == 'mcq' else [],
-                    "correctAnswer": correct_answer if question_type == 'mcq' else None,
-                    "score": score
-                })
-                current_question, current_options, correct_answer = None, [], None
-            question_type = 'mcq'
-            current_question = line
-            continue
-
-        if question_type == 'mcq' and (line.startswith("a)") or line.startswith("b)") or 
-            line.startswith("c)") or line.startswith("d)")):
-            current_options.append(line)
-            continue
-
-        if line.lower().startswith("correct:"):
-            match = re.search(r'\((.*?)\)', line)
-            if match:
-                correct_answer = match.group(1).strip()
-            continue
-
-        if current_question:
-            current_question += " " + line
-        else:
-            current_question = line
-
-    if current_question:
-        score = 2 if question_type == 'mcq' else 5
-        total_score += score
-        questions.append({
-            "type": question_type,
-            "question": current_question,
-            "options": current_options if question_type == 'mcq' else [],
-            "correctAnswer": correct_answer if question_type == 'mcq' else None,
-            "score": score
-        })
-
-    return {"examId": uid, "questions": questions, "maxScore": total_score}
-
-@app.errorhandler(413)
-def file_too_large(e):
-    return jsonify({"success": False, "message": "File is too large. Maximum size allowed is 10MB."}), 413
-
-@app.route('/auth/signup', methods=['POST'])
-def register_user():
-    try:
-        data = request.get_json()
-        required_fields = ["username", "password", "email", "role"]
-        for field in required_fields:
-            if field not in data:
-                return jsonify({"success": False, "message": f"Missing {field} field"}), 400
-        username = data["username"]
-        password = data["password"]
-        email = data["email"]
-        role = data["role"]
-        print(username, password, email, role)
-        usersCollection = db["users"]
-        existing_user = usersCollection.find_one({"username": username, "email": email})
-        JWT_SECRET = os.getenv("JWT_SECRET")
-        if existing_user:
-            return jsonify({"success": False, "message": "Username already exists"}), 409
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        token = jwt.encode({"email": email, "role": role}, JWT_SECRET, algorithm="HS256")
-        usersCollection.insert_one({"username": username, "password": hashed_password, "email": email, "role": role})
-        return jsonify({"success": True, "message": "User registered successfully", "token": token}), 201
-    except Exception as e:
-        return jsonify({"success": False, "message": f"An error occurred: {str(e)}"}), 500
-
-@app.route('/auth/login', methods=['POST'])
-def authenticate_user():
-    try:
-        data = request.get_json()
-        print(data['username'])
-        if "username" not in data or "password" not in data:
-            return jsonify({"success": False, "message": "Missing username or password"}), 400
-        username = data["username"]
-        user_password = data["password"]
-        JWT_SECRET = os.getenv("JWT_SECRET")
-        usersCollection = db["users"]
-        user_data = usersCollection.find_one({"username": username})
-        if user_data:
-            if not bcrypt.checkpw(user_password.encode('utf-8'), user_data['password']):
-                return jsonify({"success": False, "message": "Invalid credentials"}), 401
-            token = jwt.encode({"username": user_data['username'], "email": user_data['email'], "role": user_data['role']}, JWT_SECRET)
-            return jsonify({
-                "success": True,
-                "message": "Login successful",
-                "token": token,
-                "user_data": {"username": user_data['username'], "role": user_data['role']}
-            }), 200
-        else:
-            return jsonify({"success": False, "message": "User not found"}), 404
-    except Exception as e:
-        print(e)
-        return jsonify({"success": False, "message": f"An error occurred: {str(e)}"}), 500
-
-@app.route('/auth/verify', methods=['GET'])
-def verify_token():
-    try:
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return jsonify({"success": False, "message": "Token is missing"}), 401
-        token = auth_header.split(" ")[1]
-        JWT_SECRET = os.getenv("JWT_SECRET")
-        decoded_token = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+    except ClientError as e:
         return jsonify({
-            "success": True,
-            "message": "Token is valid",
-            "user_data": {"username": decoded_token['username'], "role": decoded_token['role']}
-        }), 200
-    except jwt.ExpiredSignatureError:
-        return jsonify({"success": False, "message": "Token has expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"success": False, "message": "Invalid token"}), 401
+            "success": False, 
+            "message": f"Error storing keylogs in S3: {str(e)}"
+        }), 500
     except Exception as e:
-        print(e)
-        return jsonify({"success": False, "message": f"An error occurred: {str(e)}"}), 500
-
-@app.route('/exam/details/<exam_id>', methods=['GET'])
-def get_exam_details(exam_id):
-    # Retrieve exam details from the exams collection
-    exam_doc = db_exams.find_one({"id": exam_id}, {"_id": 0})
-    if exam_doc:
         return jsonify({
-            "success": True,
-            "questions": exam_doc.get("questions", []),
-            "duration": int(exam_doc.get("duration", 0))
-        }), 200
-    return jsonify({"success": False, "message": "Exam not found"}), 404
-
-
-@app.route('/exam/connect', methods=['POST'])
-def exam_connect():
-    """
-    When a student connects with a valid login token and exam id,
-    create a new attempt record in the attempted_exams collection if one doesn't already exist,
-    and return a new token with the exam id.
-    """
-    data = request.get_json()
-    login_token = data.get('token')
-    exam_id = data.get('examId')
-    if not login_token or not exam_id:
-        return jsonify({"success": False, "message": "Missing token or exam id"}), 400
-    JWT_SECRET = os.getenv("JWT_SECRET")
-    try:
-        decoded = jwt.decode(login_token, JWT_SECRET, algorithms=["HS256"])
-    except Exception as e:
-        return jsonify({"success": False, "message": "Invalid login token"}), 401
-    username = decoded.get("username")
-    existing_attempt = db_collection.find_one({"examId": exam_id, "username": username})
-    if not existing_attempt:
-        new_attempt = {
-            "examId": exam_id,
-            "username": username,
-            "startedAt": datetime.datetime.now(datetime.timezone.utc),
-            "submittedAt": None,
-            "score": None,
-            "answers": {},
-            "abnormalAudios": []
-        }
-        db_collection.insert_one(new_attempt)
-    new_payload = {
-        "username": username,
-        "email": decoded.get("email"),
-        "role": decoded.get("role"),
-        "examId": exam_id
-    }
-    exam_token = jwt.encode(new_payload, JWT_SECRET, algorithm="HS256")
-    return jsonify({"success": True, "examToken": exam_token}), 200
-
-@app.route('/mobile/heartbeat', methods=['POST'])
-def mobile_heartbeat():
-    data = request.get_json()
-    token = data.get('token')
-    if not token:
-        return jsonify({"success": False, "message": "Token missing"}), 400
-    JWT_SECRET = os.getenv("JWT_SECRET")
-    try:
-        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        return jsonify({"success": False, "message": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"success": False, "message": "Invalid token"}), 401
-    mobile_log = {
-        "username": decoded.get("username"),
-        "examId": decoded.get("examId", "unknown"),
-        "timestamp": data.get("timestamp"),
-        "event": data.get("event", "heartbeat"),
-        "tabFocus": data.get("tabFocus"),
-        "screenWidth": data.get("screenWidth"),
-        "screenHeight": data.get("screenHeight")
-    }
-    print("Mobile activity log:", mobile_log)
-    logs_collection = db["mobile_activity_logs"]
-    result = logs_collection.insert_one(mobile_log)
-    mobile_log["_id"] = str(result.inserted_id)
-    return jsonify({"success": True, "message": "Mobile activity logged", "log": mobile_log})
-
-@app.route('/mobile/confirm', methods=['POST'])
-def mobile_confirm():
-    data = request.get_json()
-    token = data.get('token')
-    if not token:
-        return jsonify({"success": False, "message": "Token missing"}), 400
-    JWT_SECRET = os.getenv("JWT_SECRET")
-    try:
-        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    except Exception as e:
-        return jsonify({"success": False, "message": "Invalid token"}), 401
-    username = decoded.get("username")
-    exam_id = decoded.get("examId")
-    sessions_collection = db["exam_sessions"]
-    sessions_collection.update_one(
-        {"username": username, "examId": exam_id},
-        {"$set": {"mobile_confirmed": True, "confirmed_at": datetime.datetime.now(datetime.timezone.utc)}},
-        upsert=True
-    )
-    return jsonify({"success": True, "message": "Mobile confirmed successfully."}), 200
-
-@app.route('/mobile/status', methods=['GET'])
-def mobile_status():
-    token = request.args.get('token')
-    if not token:
-        return jsonify({"success": False, "message": "Token missing"}), 400
-    JWT_SECRET = os.getenv("JWT_SECRET")
-    try:
-        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-    except Exception as e:
-        return jsonify({"success": False, "message": "Invalid token"}), 401
-    username = decoded.get("username")
-    exam_id = decoded.get("examId")
-    sessions_collection = db["exam_sessions"]
-    session = sessions_collection.find_one({"username": username, "examId": exam_id})
-    mobile_confirmed = session.get("mobile_confirmed") if session else False
-    return jsonify({"success": True, "mobile_confirmed": mobile_confirmed})
+            "success": False, 
+            "message": f"Error storing keylogs: {str(e)}"
+        }), 500
 
 @app.route('/upload-audio', methods=['POST'])
 def upload_audio():
     if "audio" not in request.files:
         return jsonify({"success": False, "message": "No audio file provided"}), 400
+        
     audio_file = request.files["audio"]
     exam_id = request.form.get("examId")
     token = request.form.get("token")
+    
     if not exam_id or not token:
         return jsonify({"success": False, "message": "Missing examId or token"}), 400
-    JWT_SECRET = os.getenv("JWT_SECRET")
+        
     try:
-        decoded = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        decoded = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
+        username = decoded.get("username")
+        
+        # Create a unique filename for S3
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        original_filename = secure_filename(audio_file.filename)
+        s3_filename = f"audio/{exam_id}/{username}_{timestamp}_{original_filename}"
+        
+        # Upload to S3
+        s3_client.upload_fileobj(
+            audio_file,
+            S3_BUCKET,
+            s3_filename,
+            ExtraArgs={'ContentType': 'audio/webm'}
+        )
+        
+        # Also save locally for immediate processing
+        local_filename = f"{exam_id}_{username}_{timestamp}_{original_filename}"
+        file_path = os.path.join(AUDIO_UPLOAD_FOLDER, local_filename)
+        audio_file.save(file_path)
+        
+        # Update the corresponding exam attempt document
+        recording_entry = {
+            "file": local_filename,
+            "s3_path": s3_filename,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc)
+        }
+        
+        db_collection.update_one(
+            {"examId": exam_id, "username": username},
+            {"$push": {"recordings": recording_entry}}
+        )
+        
+        return jsonify({
+            "success": True, 
+            "message": "Audio recording stored successfully",
+            "recording": recording_entry
+        }), 200
+        
+    except ClientError as e:
+        return jsonify({
+            "success": False, 
+            "message": f"Error storing audio in S3: {str(e)}"
+        }), 500
     except Exception as e:
-        return jsonify({"success": False, "message": "Invalid token"}), 401
-    username = decoded.get("username")
-    # Create a unique filename using examId, username, timestamp and original filename.
-    original_filename = secure_filename(audio_file.filename)
-    unique_filename = f"{exam_id}_{username}_{int(datetime.datetime.now().timestamp())}_{original_filename}"
-    file_path = os.path.join(AUDIO_UPLOAD_FOLDER, unique_filename)
-    audio_file.save(file_path)
-    
-    # Update the corresponding exam attempt document by adding a recording entry.
-    recording_entry = {
-        "file": unique_filename,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc)
-    }
-    db_collection.update_one(
-        {"examId": exam_id, "username": username},
-        {"$push": {"recordings": recording_entry}}
-    )
-    
-    return jsonify({"success": True, "message": "Audio recording stored", "recording": recording_entry}), 200
-
+        return jsonify({
+            "success": False, 
+            "message": f"Error storing audio: {str(e)}"
+        }), 500
 
 @app.route('/exam/attempted/latest', methods=['GET'])
 def latest_attempt():
@@ -833,6 +641,175 @@ def exam_result():
         return jsonify({"success": True, "result": attempt}), 200
     else:
         return jsonify({"success": False, "message": "Exam attempt not found"}), 404
+
+@app.route('/get-keylogs', methods=['GET'])
+def get_keylogs():
+    exam_id = request.args.get('examId')
+    username = request.args.get('username')
+    
+    if not exam_id or not username:
+        return jsonify({"success": False, "message": "Missing examId or username"}), 400
+        
+    try:
+        # List objects in the keylogs directory for this exam and user
+        response = s3_client.list_objects_v2(
+            Bucket=S3_BUCKET,
+            Prefix=f"keylogs/{exam_id}/{username}_"
+        )
+        
+        if 'Contents' not in response:
+            return jsonify({"success": False, "message": "No keylogs found"}), 404
+            
+        # Get the most recent keylog file
+        latest_keylog = max(response['Contents'], key=lambda x: x['LastModified'])
+        
+        # Get the file content
+        file_obj = s3_client.get_object(
+            Bucket=S3_BUCKET,
+            Key=latest_keylog['Key']
+        )
+        
+        keylog_content = file_obj['Body'].read().decode('utf-8')
+        
+        return jsonify({
+            "success": True,
+            "keylogs": keylog_content,
+            "timestamp": latest_keylog['LastModified'].isoformat()
+        }), 200
+        
+    except ClientError as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error retrieving keylogs from S3: {str(e)}"
+        }), 500
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error retrieving keylogs: {str(e)}"
+        }), 500
+
+@app.route('/exam/monitoring-data', methods=['GET'])
+def get_exam_monitoring_data():
+    exam_id = request.args.get('examId')
+    username = request.args.get('username')
+    
+    if not exam_id or not username:
+        return jsonify({"success": False, "message": "Missing examId or username"}), 400
+        
+    try:
+        # Get keylogs from S3
+        keylog_response = s3_client.list_objects_v2(
+            Bucket=S3_BUCKET,
+            Prefix=f"keylogs/{exam_id}/{username}_"
+        )
+        
+        keylogs = []
+        if 'Contents' in keylog_response:
+            for keylog in keylog_response['Contents']:
+                file_obj = s3_client.get_object(
+                    Bucket=S3_BUCKET,
+                    Key=keylog['Key']
+                )
+                keylog_content = file_obj['Body'].read().decode('utf-8')
+                keylogs.append({
+                    'content': keylog_content,
+                    'timestamp': keylog['LastModified'].isoformat(),
+                    's3_path': keylog['Key']
+                })
+        
+        # Get audio recordings from S3
+        audio_response = s3_client.list_objects_v2(
+            Bucket=S3_BUCKET,
+            Prefix=f"audio/{exam_id}/{username}_"
+        )
+        
+        audio_recordings = []
+        if 'Contents' in audio_response:
+            for audio in audio_response['Contents']:
+                audio_recordings.append({
+                    's3_path': audio['Key'],
+                    'timestamp': audio['LastModified'].isoformat(),
+                    'url': s3_client.generate_presigned_url(
+                        'get_object',
+                        Params={
+                            'Bucket': S3_BUCKET,
+                            'Key': audio['Key']
+                        },
+                        ExpiresIn=3600  # URL expires in 1 hour
+                    )
+                })
+        
+        return jsonify({
+            "success": True,
+            "keylogs": keylogs,
+            "audio_recordings": audio_recordings
+        }), 200
+        
+    except ClientError as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error retrieving monitoring data from S3: {str(e)}"
+        }), 500
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error retrieving monitoring data: {str(e)}"
+        }), 500
+
+@app.route('/run-diarization', methods=['POST'])
+def run_diarization():
+    data = request.get_json()
+    exam_id = data.get('examId')
+    username = data.get('username')
+    audio_path = data.get('audioPath')
+    
+    if not exam_id or not username or not audio_path:
+        return jsonify({"success": False, "message": "Missing required parameters"}), 400
+        
+    try:
+        # Download audio file from S3
+        local_path = os.path.join(AUDIO_UPLOAD_FOLDER, f"temp_{exam_id}_{username}.wav")
+        s3_client.download_file(S3_BUCKET, audio_path, local_path)
+        
+        # Run diarization
+        import librosa
+        import numpy as np
+        from pyannote.audio import Pipeline
+        
+        # Load audio file
+        audio, sr = librosa.load(local_path, sr=16000)
+        
+        # Initialize diarization pipeline
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization",
+            use_auth_token=os.getenv("HUGGINGFACE_TOKEN")
+        )
+        
+        # Run diarization
+        diarization = pipeline({"waveform": audio, "sample_rate": sr})
+        
+        # Process results
+        segments = []
+        for turn, _, speaker in diarization.itertracks(yield_label=True):
+            segments.append({
+                'start': turn.start,
+                'end': turn.end,
+                'speaker': speaker
+            })
+        
+        # Clean up temporary file
+        os.remove(local_path)
+        
+        return jsonify({
+            "success": True,
+            "segments": segments
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error running diarization: {str(e)}"
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

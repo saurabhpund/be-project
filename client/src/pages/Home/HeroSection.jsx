@@ -1,5 +1,7 @@
 import React from 'react'
-import { Shield, Monitor, Book, User, Check, ArrowRight, Code, Brain, Eye, Users, ChevronRight, Menu, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import HeroSectionImg from "../../assets/d55.png"
+import { ArrowRight, Brain } from 'lucide-react';
 
 const HeroSection = () => {
   return (
@@ -18,12 +20,9 @@ const HeroSection = () => {
                 Secure, fair, and accessible remote examinations with advanced machine learning monitoring and analytics.
               </p>
               <div className="flex flex-wrap gap-4">
-                <button className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center">
+                <Link to="/auth/signup"className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium flex items-center">
                   Get Started <ArrowRight className="ml-2 h-5 w-5" />
-                </button>
-                <button className="px-6 py-3 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors font-medium">
-                  Request Demo
-                </button>
+                </Link>
               </div>
             </div>
             <div className="md:w-1/2">
@@ -38,7 +37,7 @@ const HeroSection = () => {
                       </div>
                     </div>
                     <img 
-                      src="./assets" 
+                      src={HeroSectionImg} 
                       alt="FairAI Dashboard" 
                       className="w-full object-cover"
                     />

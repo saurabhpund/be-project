@@ -136,43 +136,45 @@ function Exam() {
   };
 
   const handleSubmit = async () => {
-    if (audioRecorderRef.current) {
-      console.log("Uploading audio...");
-      const audioResult = await audioRecorderRef.current.uploadRecording();
-      console.log("Audio upload result:", audioResult);
-    }
-
-    const timeTaken = calculateTimeTaken();
-    let score = 0;
-    questions.forEach((q, index) => {
-      if (q.type === 'mcq') {
-        if (
-          selectedAnswers[index] &&
-          q.correctAnswer &&
-          selectedAnswers[index].toLowerCase().includes(q.correctAnswer.toLowerCase())
-        ) {
-          score += 2; // MCQ score
-        }
-      } else if (q.type === 'coding') {
-        const codeAnswer = localStorage.getItem(`code_question_${index}`);
-        if (codeAnswer && codeAnswer.trim() !== "") {
-          score += 5;
-        }
-      }
-    });
-
-    alert(`Exam submitted successfully! You completed the exam in ${timeTaken}. Your score is ${score}.`);
-    console.log('Selected Answers:', selectedAnswers);
-
-    const payload = {
-      examId,
-      username: localStorage.getItem("username"),
-      examStartTime: examStartTime.current.toISOString(),
-      answers: buildCompleteAnswers(),
-      abnormalAudios: [] // Not processing any abnormal audio in this simplified flow
-    };
-
     try {
+      // First upload audio recording if available
+      if (audioRecorderRef.current) {
+        console.log("Uploading audio to S3...");
+        const audioResult = await audioRecorderRef.current.uploadRecording();
+        console.log("Audio S3 upload result:", audioResult);
+      }
+
+      const timeTaken = calculateTimeTaken();
+      let score = 0;
+      questions.forEach((q, index) => {
+        if (q.type === 'mcq') {
+          if (
+            selectedAnswers[index] &&
+            q.correctAnswer &&
+            selectedAnswers[index].toLowerCase().includes(q.correctAnswer.toLowerCase())
+          ) {
+            score += 2; // MCQ score
+          }
+        } else if (q.type === 'coding') {
+          const codeAnswer = localStorage.getItem(`code_question_${index}`);
+          if (codeAnswer && codeAnswer.trim() !== "") {
+            score += 5;
+          }
+        }
+      });
+
+      alert(`Exam submitted successfully! You completed the exam in ${timeTaken}. Your score is ${score}.`);
+      console.log('Selected Answers:', selectedAnswers);
+
+      const payload = {
+        examId,
+        username: localStorage.getItem("username"),
+        examStartTime: examStartTime.current.toISOString(),
+        answers: buildCompleteAnswers(),
+        abnormalAudios: [] // Not processing any abnormal audio in this simplified flow
+      };
+
+      // Submit exam
       const response = await fetch(`${BASE_URL}/exam/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -180,50 +182,54 @@ function Exam() {
       });
       const result = await response.json();
       console.log("Exam submission result:", result);
-    } catch (err) {
-      console.error("Error submitting exam:", err);
-    }
 
-    // Clear exam state after submission
-    setExamStarted(false);
-    setQuestions([]);
-    setCurrentQuestionIndex(0);
-    setSelectedAnswers({});
-    setExamDuration(0);
-    setError("");
-    setExamToken(null);
-
-    try {
-      // send your keyLogs to the backend
+      // After successful exam submission, upload keylogs to S3
       const token = localStorage.getItem("token");
-      console.log("Sending keylogs:", { keyLogs }); // Debug log
-      const response = await fetch(`${BASE_URL}/upload/keylogs`, {
+      console.log("Uploading keylogs to S3...");
+      const keylogResponse = await fetch(`${BASE_URL}/store-keylogs`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ keyLogs })
-      });
-      const result = await response.json(); // Get the response
-      console.log("Keylogs upload response:", result); // Debug log
-
-      await fetch(`${BASE_URL}/upload/keylogs/analyze`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
+          keyLogs,
           examId,
           username: localStorage.getItem("username")
         })
       });
-    } catch (err) {
-      console.error("Failed to upload key logs:", err);
-    }
+      const keylogResult = await keylogResponse.json();
+      console.log("Keylogs S3 upload response:", keylogResult);
 
-    navigate('/dashboard');
+      // After successful keylog upload, trigger analysis
+      if (keylogResult.success) {
+        await fetch(`${BASE_URL}/upload/keylogs/analyze`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            examId,
+            username: localStorage.getItem("username")
+          })
+        });
+      }
+
+      // Clear exam state after successful submission and upload
+      setExamStarted(false);
+      setQuestions([]);
+      setCurrentQuestionIndex(0);
+      setSelectedAnswers({});
+      setExamDuration(0);
+      setError("");
+      setExamToken(null);
+
+      navigate('/dashboard');
+    } catch (err) {
+      console.error("Error during exam submission or data upload:", err);
+      alert("There was an error submitting your exam. Please contact the administrator.");
+    }
   };
 
   useEffect(() => {
