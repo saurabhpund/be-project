@@ -44,7 +44,7 @@ export default function Home() {
       <Benifits />
 
       {/* Testimonials */}
-      <Testimonials />
+      {/* <Testimonials /> */}
 
 
       {/* Footer */}
