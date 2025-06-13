@@ -8,7 +8,7 @@ class FeatureExtractor:
     """
     Class for extracting MFCC features from audio for diarization.
     """
-    def __init__(self, sample_rate=16000, n_mfcc=13, n_mels=40, n_fft=512, hop_length=160):
+    def __init__(self, sample_rate=16000, n_mfcc=20, n_mels=80, n_fft=1024, hop_length=320):
         """
         Initialize the feature extractor.
         
@@ -48,14 +48,17 @@ class FeatureExtractor:
             audio_data = librosa.resample(audio_data, orig_sr=sample_rate, target_sr=self.sample_rate)
             sample_rate = self.sample_rate
             
-        # Extract MFCCs
+        # Extract MFCCs with improved parameters
         mfccs = librosa.feature.mfcc(
             y=audio_data,
             sr=sample_rate,
             n_mfcc=self.n_mfcc,
             n_mels=self.n_mels,
             n_fft=self.n_fft,
-            hop_length=self.hop_length
+            hop_length=self.hop_length,
+            fmin=20,  # Lower frequency bound
+            fmax=8000,  # Upper frequency bound
+            lifter=22  # Apply liftering to emphasize higher MFCCs
         )
         
         # Add delta features
@@ -64,6 +67,9 @@ class FeatureExtractor:
         
         # Combine features
         features = np.vstack([mfccs, delta_mfccs, delta2_mfccs])
+        
+        # Normalize features
+        features = (features - np.mean(features)) / np.std(features)
         
         return features
     

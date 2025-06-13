@@ -23,6 +23,21 @@ db_exams = db_data['db_exams']
 db_collection = db_data['db_collection']
 db_frames = db_data['frames']
 exam_bp = Blueprint('exam', __name__)
+
+# Add CORS headers to all routes in this blueprint
+@exam_bp.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.33:3000"]
+    
+    if origin in allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    
+    return response
+
 #mail= Mail(current_app)
 
 ALLOWED_EXCEL_EXTENSIONS = {'.xlsx', '.xls'}
@@ -209,7 +224,7 @@ def exam_assigned():
         print("Error in /exam/assigned:", e)
         return jsonify({"success": False, "message": str(e)}), 500
 @exam_bp.route('/attempts', methods=['GET'])
-@cross_origin(origins=[""], supports_credentials=True)
+@cross_origin(origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.33:3000"], supports_credentials=True)
 def exam_attempts():
     # 1) grab the camelCase param
     exam_id = request.args.get("examId")
@@ -247,7 +262,7 @@ def exam_attempts():
             "image":     f["image"]
         } for f in frames_cursor]
         a["cheatingFrames"] = frames
-
+        
         attempts.append(a)
 
     return jsonify({"success": True, "attempts": attempts}), 200
@@ -595,44 +610,73 @@ def get_exam_details(exam_id):
         }), 200
     return jsonify({"success": False, "message": "Exam not found"}), 404
 
-@exam_bp.route('/connect', methods=['POST'])
+@exam_bp.route('/connect', methods=['POST', 'OPTIONS'])
+@cross_origin(origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.33:3000"], 
+              supports_credentials=True,
+              methods=['POST', 'OPTIONS'],
+              allow_headers=['Content-Type', 'Authorization'])
 def exam_connect():
-    """
-    When a student connects with a valid login token and exam id,
-    create a new attempt record in the attempted_exams collection if one doesn't already exist,
-    and return a new token with the exam id.
-    """
-    data = request.get_json()
-    login_token = data.get('token')
-    exam_id = data.get('examId')
-    if not login_token or not exam_id:
-        return jsonify({"success": False, "message": "Missing token or exam id"}), 400
-    JWT_SECRET = os.getenv("JWT_SECRET")
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     try:
-        decoded = jwt.decode(login_token, JWT_SECRET, algorithms=["HS256"])
-    except Exception as e:
-        return jsonify({"success": False, "message": "Invalid login token"}), 401
-    username = decoded.get("username")
-    existing_attempt = db_collection.find_one({"examId": exam_id, "username": username})
-    if not existing_attempt:
-        new_attempt = {
-            "examId": exam_id,
+        data = request.get_json()
+        token = data.get('token')
+        exam_id = data.get('examId')
+        
+        if not token or not exam_id:
+            return jsonify({"success": False, "message": "Missing token or examId"}), 400
+            
+        # Decode the login token
+        try:
+            decoded = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
+            username = decoded.get("username")
+            email = decoded.get("email")
+            role = decoded.get("role")
+        except Exception as e:
+            return jsonify({"success": False, "message": "Invalid token"}), 401
+            
+        # Create exam session
+        session_data = {
             "username": username,
-            "startedAt": datetime.datetime.now(datetime.timezone.utc),
-            "submittedAt": None,
-            "score": None,
-            "answers": {},
-            "abnormalAudios": []
+            "examId": exam_id,
+            "started_at": datetime.datetime.now(datetime.timezone.utc),
+            "is_active": True,
+            "mobile_confirmed": False
         }
-        db_collection.insert_one(new_attempt)
-    new_payload = {
-        "username": username,
-        "email": decoded.get("email"),
-        "role": decoded.get("role"),
-        "examId": exam_id
-    }
-    exam_token = jwt.encode(new_payload, JWT_SECRET, algorithm="HS256")
-    return jsonify({"success": True, "examToken": exam_token}), 200
+        
+        # Store session in database
+        sessions_collection = db["exam_sessions"]
+        sessions_collection.update_one(
+            {"username": username, "examId": exam_id},
+            {"$set": session_data},
+            upsert=True
+        )
+        
+        # Generate exam token
+        exam_token_payload = {
+            "username": username,
+            "email": email,
+            "role": role,
+            "examId": exam_id,
+            "iat": datetime.datetime.utcnow(),
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=4)  # 4 hour expiry
+        }
+        
+        exam_token = jwt.encode(
+            exam_token_payload,
+            os.getenv("JWT_SECRET"),
+            algorithm="HS256"
+        )
+        
+        return jsonify({
+            "success": True,
+            "examToken": exam_token
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in exam connect: {str(e)}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @exam_bp.route('/attempted/latest', methods=['GET'])
 def latest_attempt():

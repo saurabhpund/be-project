@@ -14,26 +14,36 @@ from audio_analysis.routes import audio_analysis
 
 def create_app(config_class=config):
     app = Flask(__name__)
-    CORS(app, resources={r"/exam/*": {"origins": "http://localhost:3000" or "http://127.0.0.1:3000" or "http://192.168.1.35:3000" }})
+    
+    # Configure CORS properly
+    CORS(app, resources={
+        r"/*": {
+            "origins": ["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.33:3000"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True
+        }
+    })
+    
     @app.after_request
-    def add_cors(response):
-        # Allow your dev origin (you can use "*" for everything, but it's safer to lock it down):
-        response.headers["Access-Control-Allow-Origin"] = "http://localhost:3000"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    def after_request(response):
+        # Get the origin from the request
+        origin = request.headers.get('Origin')
+        allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.33:3000"]
+        
+        # If the origin is in our allowed list, set it as the Access-Control-Allow-Origin
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        
         return response
+    
     app.config.from_object(config_class)
     
     Mmail = Mail()
     Mmail.init_app(app)
-    
-    # Enable CORS for the app (allow all origins for debugging)
-    CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
-    # Also apply CORS to all blueprints
-    CORS(auth_bp, supports_credentials=True, resources={r"/*": {"origins": "*"}})
-    CORS(exam_bp, supports_credentials=True, resources={r"/*": {"origins": "*"}})
-    CORS(mobile_bp, supports_credentials=True, resources={r"/*": {"origins": "*"}})
-    CORS(upload_bp, supports_credentials=True, resources={r"/*": {"origins": "*"}})
     
     # Initialize database
     try:

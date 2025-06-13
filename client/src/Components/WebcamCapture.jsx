@@ -19,16 +19,23 @@ const WebcamCapture = ({exam_id}) => {
         .post(`${BASE_URL}/upload`, {
           image: imageSrc,
           exam_id: exam_id
-        }, {withCredentials: true,headers: {
-        // send it as a Bearer header so your Flask route can decode it
-        Authorization: `Bearer ${token}`,
-      },})
+        }, {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        })
         .then((response) => {
           setDetectedObjects(response.data.objects || []);
           // console.log('Frame sent successfully', response.data);
         })
         .catch((error) => {
           console.error("Error sending frame:", error);
+          if (error.response) {
+            console.error("Error response:", error.response.data);
+          }
         });
     }
   }, [webcamRef, exam_id]);

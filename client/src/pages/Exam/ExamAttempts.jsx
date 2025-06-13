@@ -22,7 +22,14 @@ const ExamAttempts = () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${BASE_URL}/exam/attempts?examId=${examId}`);
+        const res = await fetch(`${BASE_URL}/exam/attempts?examId=${examId}`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
         const data = await res.json();
         if (data.success) {
           setAttempts(data.attempts);
@@ -47,14 +54,20 @@ const ExamAttempts = () => {
     setDiarizationData(null);
     try {
       // Fetch the audio as a Blob
-      const response = await fetch(audioUrl);
+      const response = await fetch(audioUrl, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'audio/webm'
+        }
+      });
       const blob = await response.blob();
       // Create a File from the Blob
       const file = new File([blob], 'exam_audio.wav', { type: blob.type });
       const formData = new FormData();
       formData.append('audio_file', file);
-      const apiResponse = await fetch('/api/audio-analysis/analyze-exam-audio', {
+      const apiResponse = await fetch(`${BASE_URL}/api/audio-analysis/analyze-exam-audio`, {
         method: 'POST',
+        credentials: 'include',
         body: formData
       });
       const data = await apiResponse.json();
@@ -63,6 +76,7 @@ const ExamAttempts = () => {
         setDiarizationError(data.error || 'Diarization failed');
       }
     } catch (error) {
+      console.error('Audio analysis error:', error);
       setDiarizationError('Failed to analyze audio');
     } finally {
       setDiarizationLoading(false);

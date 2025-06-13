@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, send_file
+from flask_cors import cross_origin
 import base64
 from flask import current_app as app
 from werkzeug.utils import secure_filename
@@ -23,7 +24,22 @@ db_collection = db_data['db_collection']
 db_frames = db_data['frames']
 upload_bp = Blueprint('upload', __name__)
 
+# Add CORS headers to all routes in this blueprint
+@upload_bp.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+    response.headers.add('Access-Control-Allow-Origin', 'http://127.0.0.1:3000')
+    response.headers.add('Access-Control-Allow-Origin', 'http://192.168.1.33:3000')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
 @upload_bp.route('', methods=['POST', 'OPTIONS'])
+@cross_origin(origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.33:3000"], 
+              supports_credentials=True,
+              methods=['POST', 'OPTIONS'],
+              allow_headers=['Content-Type', 'Authorization'])
 def upload_frame():
     if request.method == 'OPTIONS':
         return '', 200
@@ -167,12 +183,33 @@ def upload_audio():
 
 @upload_bp.route('/audio/<path:filename>', methods=['GET'])
 def serve_audio(filename):
-    file_path = os.path.join(Config.AUDIO_UPLOAD_FOLDER, filename)
-    return send_file(file_path, mimetype="audio/webm")
+    try:
+        file_path = os.path.join(Config.AUDIO_UPLOAD_FOLDER, filename)
+        if not os.path.exists(file_path):
+            print(f"[AUDIO SERVE] File not found: {file_path}")
+            return jsonify({"success": False, "message": "Audio file not found"}), 404
+            
+        print(f"[AUDIO SERVE] Serving file: {file_path}")
+        return send_file(
+            file_path,
+            mimetype="audio/webm",
+            as_attachment=False,
+            conditional=True  # Enable conditional responses
+        )
+    except Exception as e:
+        print(f"[AUDIO SERVE] Error serving file: {str(e)}")
+        return jsonify({"success": False, "message": f"Error serving audio file: {str(e)}"}), 500
 
 
-@upload_bp.route('/keylogs', methods=['POST'])
+@upload_bp.route('/keylogs', methods=['POST', 'OPTIONS'])
+@cross_origin(origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.33:3000"], 
+              supports_credentials=True,
+              methods=['POST', 'OPTIONS'],
+              allow_headers=['Content-Type', 'Authorization'])
 def store_keylogs():
+    if request.method == 'OPTIONS':
+        return '', 200
+        
     # force JSON parsing even if header is missing
     data = request.get_json(force=True)
     print("🔍 store_keylogs received:", data)

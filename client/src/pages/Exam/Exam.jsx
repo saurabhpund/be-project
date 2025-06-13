@@ -43,7 +43,14 @@ function Exam() {
   // Fetch exam details based on the examId from the URL
   useEffect(() => {
     if (examId) {
-      fetch(`${BASE_URL}/exam/details/${examId}`)
+      fetch(`${BASE_URL}/exam/details/${examId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      })
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
@@ -63,10 +70,15 @@ function Exam() {
   // Generate exam token for mobile monitoring when exam starts
   useEffect(() => {
     if (examStarted) {
-      const loginToken = localStorage.getItem("token"); // Assumes login token is in localStorage
+      const loginToken = localStorage.getItem("token");
       fetch(`${BASE_URL}/exam/connect`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${loginToken}`
+        },
         body: JSON.stringify({ token: loginToken, examId })
       })
         .then(res => res.json())
@@ -177,7 +189,12 @@ function Exam() {
       // Submit exam
       const response = await fetch(`${BASE_URL}/exam/submit`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token")}`
+        },
         body: JSON.stringify(payload)
       });
       const result = await response.json();
@@ -186,10 +203,12 @@ function Exam() {
       // After successful exam submission, upload keylogs to S3
       const token = localStorage.getItem("token");
       console.log("Uploading keylogs to S3...");
-      const keylogResponse = await fetch(`${BASE_URL}/store-keylogs`, {
+      const keylogResponse = await fetch(`${BASE_URL}/upload/keylogs`, {
         method: "POST",
+        credentials: 'include',
         headers: { 
           "Content-Type": "application/json",
+          "Accept": "application/json",
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({ 
@@ -205,8 +224,10 @@ function Exam() {
       if (keylogResult.success) {
         await fetch(`${BASE_URL}/upload/keylogs/analyze`, {
           method: "POST",
+          credentials: 'include',
           headers: { 
             "Content-Type": "application/json",
+            "Accept": "application/json",
             "Authorization": `Bearer ${token}`
           },
           body: JSON.stringify({

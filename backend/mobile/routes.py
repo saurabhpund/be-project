@@ -78,7 +78,7 @@ def mobile_heartbeat():
         return jsonify({"success": False, "message": "Token missing"}), 400
         
     try:
-        decoded = jwt.decode(token, Config.JWT_SECRET, algorithms=["HS256"])
+        decoded = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
         return jsonify({"success": False, "message": "Token expired"}), 401
     except jwt.InvalidTokenError:
@@ -126,7 +126,7 @@ def mobile_confirm():
         return jsonify({"success": False, "message": "Token missing"}), 400
         
     try:
-        decoded = jwt.decode(token, Config.JWT_SECRET, algorithms=["HS256"])
+        decoded = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
     except Exception as e:
         return jsonify({"success": False, "message": "Invalid token"}), 401
         
@@ -160,7 +160,7 @@ def mobile_status():
         return jsonify({"success": False, "message": "Token missing"}), 400
         
     try:
-        decoded = jwt.decode(token, Config.JWT_SECRET, algorithms=["HS256"])
+        decoded = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
     except Exception as e:
         return jsonify({"success": False, "message": "Invalid token"}), 401
         
